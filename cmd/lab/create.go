@@ -22,8 +22,6 @@ func init() {
 	CreateCmd.PersistentFlags().StringVar(&templateReposFile, "template-repos", "", "Path to template repositories file (JSON) (required)")
 	CreateCmd.MarkPersistentFlagRequired("template-repos")
 
-	CreateCmd.PersistentFlags().StringVar(&facilitators, "facilitators", "", "lab facilitators usernames, comma-separated")
-	CreateCmd.MarkPersistentFlagRequired("facilitators")
 }
 
 var CreateCmd = &cobra.Command{
@@ -45,7 +43,6 @@ var CreateCmd = &cobra.Command{
 
 		// Now add our lab-specific context values
 		ctx := cmd.Context()
-		ctx = context.WithValue(ctx, config.EnterpriseSlugKey, cmd.Flags().Lookup("enterprise-slug").Value.String())
 		ctx = context.WithValue(ctx, config.FacilitatorsKey, strings.Split(facilitators, ","))
 		ctx = context.WithValue(ctx, config.LabDateKey, labDate)
 

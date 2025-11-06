@@ -29,9 +29,7 @@ var DeleteCmd = &cobra.Command{
 			}
 		}
 
-		// Get context AFTER calling root's PersistentPreRunE (which sets BaseURLKey)
 		ctx := cmd.Context()
-		ctx = context.WithValue(ctx, config.EnterpriseSlugKey, cmd.Flags().Lookup("enterprise-slug").Value.String())
 		ctx = context.WithValue(ctx, config.FacilitatorsKey, strings.Split(facilitators, ","))
 		ctx = context.WithValue(ctx, config.LabDateKey, labDate)
 

@@ -20,6 +20,8 @@ func init() {
 	LabCmd.MarkPersistentFlagRequired("lab-date")
 	LabCmd.PersistentFlags().StringVar(&usersFile, "users-file", "", "Path to user file (txt) (required)")
 	LabCmd.MarkPersistentFlagRequired("users-file")
+	LabCmd.PersistentFlags().StringVar(&facilitators, "facilitators", "", "lab facilitators usernames, comma-separated")
+	LabCmd.MarkPersistentFlagRequired("facilitators")
 
 	LabCmd.AddCommand(CreateCmd)
 	LabCmd.AddCommand(DeleteCmd)
