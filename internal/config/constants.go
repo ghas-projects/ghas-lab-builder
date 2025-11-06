@@ -1,18 +1,21 @@
 package config
 
-type AppContextKey string
+type contextKey string
 
 const (
-	AppIDKey          AppContextKey = "app_id"
-	PrivateKeyKey     AppContextKey = "private_key" // Changed from PrivateKeyPathKey
-	TokenKey          AppContextKey = "tokens"
-	BaseURLKey        AppContextKey = "base_url"
-	DryRunKey         AppContextKey = "dry_run"
-	LabDateKey        AppContextKey = "lab_date"
-	FacilitatorsKey   AppContextKey = "facilitators"
-	EnterpriseSlugKey AppContextKey = "enterprise_slug"
-	DefaultBaseURL    string        = "https://api.github.com"
-	OrgKey            AppContextKey = "org"
-	EnterpriseType    string        = "Enterprise"
-	OrganizationType  string        = "Organization"
+	TokenKey          contextKey = "token"
+	AppIDKey          contextKey = "app-id"
+	PrivateKeyKey     contextKey = "private-key"
+	BaseURLKey        contextKey = "base-url"
+	EnterpriseSlugKey contextKey = "enterprise-slug"
+	LabDateKey        contextKey = "lab-date"
+	FacilitatorsKey   contextKey = "facilitators"
+	LoggerKey         contextKey = "logger"
+	OrgKey            contextKey = "org"
+)
+
+const (
+	DefaultBaseURL   string = "https://api.github.com"
+	EnterpriseType   string = "Enterprise"
+	OrganizationType string = "Organization"
 )

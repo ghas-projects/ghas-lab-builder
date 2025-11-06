@@ -54,7 +54,13 @@ var CreateCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
-		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+		// Get logger from context (initialized in root command)
+		logger, ok := ctx.Value(config.LoggerKey).(*slog.Logger)
+		if !ok || logger == nil {
+			// Fallback to default logger if not found
+			logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		}
 
 		return labservice.CreateLabEnvironment(ctx, logger, usersFile, templateReposFile)
 	},

@@ -40,7 +40,10 @@ var DeleteCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
-		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		logger, ok := ctx.Value(config.LoggerKey).(*slog.Logger)
+		if !ok || logger == nil {
+			logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		}
 
 		return labservice.DestroyLabEnvironment(ctx, logger, labDate, usersFile)
 	},
