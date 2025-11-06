@@ -185,7 +185,7 @@ func NewGithubStyleTransport(ctx context.Context, logger *slog.Logger, targetTyp
 		// Acquire new installation token for this target type
 		ts := auth.NewTokenService(
 			ctx.Value(config.AppIDKey).(string),
-			ctx.Value(config.PrivateKeyPathKey).(string),
+			ctx.Value(config.PrivateKeyKey).(string), // Changed from PrivateKeyPathKey
 			ctx.Value(config.BaseURLKey).(string),
 		)
 

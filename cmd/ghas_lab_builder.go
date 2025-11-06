@@ -14,7 +14,7 @@ import (
 
 var (
 	appId          string
-	privateKeyPath string
+	privateKey     string // Changed from privateKeyPath
 	token          string
 	baseURL        string
 	enterpriseSlug string
@@ -26,25 +26,25 @@ var rootCmd = &cobra.Command{
 	Long: `ghas-lab-builder is a CLI tool that helps you set up GitHub Advanced Security Lab environments by 
           automating the creation of organizations, repositories, and addings  users required for hands-on labs.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Validate that either token OR (app-id + private-key-path) is provided, but not both
+		// Validate that either token OR (app-id + private-key) is provided, but not both
 		hasToken := token != ""
-		hasAppCreds := appId != "" || privateKeyPath != ""
+		hasAppCreds := appId != "" || privateKey != ""
 
 		if !hasToken && !hasAppCreds {
-			return fmt.Errorf("authentication required: provide either --token OR both --app-id and --private-key-path")
+			return fmt.Errorf("authentication required: provide either --token OR both --app-id and --private-key")
 		}
 
 		if hasToken && hasAppCreds {
-			return fmt.Errorf("conflicting authentication methods: provide either --token OR (--app-id and --private-key-path), not both")
+			return fmt.Errorf("conflicting authentication methods: provide either --token OR (--app-id and --private-key), not both")
 		}
 
-		// If using app credentials, both app-id and private-key-path must be provided
+		// If using app credentials, both app-id and private-key must be provided
 		if hasAppCreds {
 			if appId == "" {
 				return fmt.Errorf("--app-id is required when using GitHub App authentication")
 			}
-			if privateKeyPath == "" {
-				return fmt.Errorf("--private-key-path is required when using GitHub App authentication")
+			if privateKey == "" {
+				return fmt.Errorf("--private-key is required when using GitHub App authentication")
 			}
 		}
 
@@ -61,7 +61,7 @@ var rootCmd = &cobra.Command{
 		} else {
 			// Using GitHub App authentication
 			ctx = context.WithValue(ctx, config.AppIDKey, appId)
-			ctx = context.WithValue(ctx, config.PrivateKeyPathKey, privateKeyPath)
+			ctx = context.WithValue(ctx, config.PrivateKeyKey, privateKey) // Changed
 		}
 
 		ctx = context.WithValue(ctx, config.BaseURLKey, baseURL)
@@ -82,7 +82,7 @@ func Execute() {
 func init() {
 	// GitHub App authentication flags
 	rootCmd.PersistentFlags().StringVar(&appId, "app-id", "", "GitHub App ID (required if not using --token)")
-	rootCmd.PersistentFlags().StringVar(&privateKeyPath, "private-key-path", "", "Path to GitHub App private key PEM file (required if not using --token)")
+	rootCmd.PersistentFlags().StringVar(&privateKey, "private-key", "", "GitHub App private key PEM content (required if not using --token)") // Changed
 
 	// PAT authentication flag
 	rootCmd.PersistentFlags().StringVar(&token, "token", "", "GitHub Personal Access Token (required if not using GitHub App authentication)")

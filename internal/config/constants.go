@@ -4,7 +4,7 @@ type AppContextKey string
 
 const (
 	AppIDKey          AppContextKey = "app_id"
-	PrivateKeyPathKey AppContextKey = "private_key_path"
+	PrivateKeyKey     AppContextKey = "private_key" // Changed from PrivateKeyPathKey
 	TokenKey          AppContextKey = "tokens"
 	BaseURLKey        AppContextKey = "base_url"
 	DryRunKey         AppContextKey = "dry_run"

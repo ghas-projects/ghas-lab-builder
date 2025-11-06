@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v4"
@@ -23,9 +22,9 @@ type InstallationTokenInfo struct {
 
 // TokenService handles GitHub App authentication
 type TokenService struct {
-	appID          string
-	privateKeyPath string
-	baseURL        string
+	appID      string
+	privateKey string // Changed from privateKeyPath
+	baseURL    string
 }
 
 // Installation represents a GitHub App installation
@@ -45,21 +44,18 @@ type InstallationToken struct {
 }
 
 // NewTokenService creates a new TokenService
-func NewTokenService(appID, privateKeyPath, baseURL string) *TokenService {
+func NewTokenService(appID, privateKey, baseURL string) *TokenService {
 	return &TokenService{
-		appID:          appID,
-		privateKeyPath: privateKeyPath,
-		baseURL:        baseURL,
+		appID:      appID,
+		privateKey: privateKey, // Changed
+		baseURL:    baseURL,
 	}
 }
 
 // CreateJWT generates a JWT for GitHub App authentication
 func (ts *TokenService) CreateJWT() (string, error) {
-	// Read the private key file
-	privateKeyData, err := os.ReadFile(ts.privateKeyPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read priate key file: %w", err)
-	}
+	// Use the private key content directly
+	privateKeyData := []byte(ts.privateKey) // Changed
 
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyData)

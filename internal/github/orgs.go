@@ -386,7 +386,7 @@ func (enterprise *Enterprise) InstallAppOnOrg(ctx context.Context, logger *slog.
 		slog.String("org", orgName))
 
 	//I don't love this but to get the ClientID we need to get an enterprise installation token again. Consider refactoring later.
-	ts := auth.NewTokenService(ctx.Value(config.AppIDKey).(string), ctx.Value(config.PrivateKeyPathKey).(string), ctx.Value(config.BaseURLKey).(string))
+	ts := auth.NewTokenService(ctx.Value(config.AppIDKey).(string), ctx.Value(config.PrivateKeyKey).(string), ctx.Value(config.BaseURLKey).(string))
 	token, err := ts.GetInstallationToken(config.EnterpriseType)
 
 	if err != nil {
