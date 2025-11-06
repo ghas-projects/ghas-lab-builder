@@ -16,7 +16,7 @@ jobs:
       
       - uses: actions/setup-go@v6
         with:
-           go-version-file: ghas-lab-builder/go.mod
+           go-version-file: go.mod
       
       - name: Build binaries
         run: |
