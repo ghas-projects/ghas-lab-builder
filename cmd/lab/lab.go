@@ -16,7 +16,6 @@ var LabCmd = &cobra.Command{
 }
 
 func init() {
-
 	LabCmd.PersistentFlags().StringVar(&labDate, "lab-date", "", "Date string to identify date of the lab (e.g., '2024-06-15')")
 	LabCmd.MarkPersistentFlagRequired("lab-date")
 	LabCmd.PersistentFlags().StringVar(&usersFile, "users-file", "", "Path to user file (txt) (required)")
@@ -24,5 +23,4 @@ func init() {
 
 	LabCmd.AddCommand(CreateCmd)
 	LabCmd.AddCommand(DeleteCmd)
-
 }

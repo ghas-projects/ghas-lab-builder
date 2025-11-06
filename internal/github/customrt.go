@@ -2,11 +2,12 @@ package api
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/s-samadi/ghas-lab-builder/internal/auth"
 	"github.com/s-samadi/ghas-lab-builder/internal/config"
 )
 
@@ -33,6 +34,21 @@ type Options struct {
 	// Maximum number of bytes to log for request and response bodies.
 	// Set to 0 to disable body logging.
 	MaxBodyLogBytes int64
+}
+
+// tokenCache holds cached tokens by target type
+type tokenCache struct {
+	sync.RWMutex
+	tokens map[string]cachedToken
+}
+
+type cachedToken struct {
+	token   string
+	expires time.Time
+}
+
+var globalTokenCache = &tokenCache{
+	tokens: make(map[string]cachedToken),
 }
 
 // CustomRoundTripper implements http.RoundTripper
@@ -124,44 +140,94 @@ func (c *CustomRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	return resp, nil
 }
 
-// Helper for simple API: create a transport that injects GitHub headers and a token from TokenManager
-// Accepts a context with TokenManager, and logger.
-func NewGithubStyleTransport(ctx context.Context, logger *slog.Logger) *CustomRoundTripper {
+// Helper for simple API: create a transport that injects GitHub headers and acquires token automatically
+// Accepts a context with app credentials or PAT token, logger, and installation target type.
+func NewGithubStyleTransport(ctx context.Context, logger *slog.Logger, targetType string) *CustomRoundTripper {
 	static := map[string]string{
 		"Accept":               "application/vnd.github+json",
 		"X-GitHub-Api-Version": "2022-11-28",
 	}
 
 	authProv := func(req *http.Request) (string, error) {
-		// Try to get TokenManager from context first
-		if tm := ctx.Value(config.TokenManagerKey); tm != nil {
-			if tokenManager, ok := tm.(interface{ GetCurrentToken() string }); ok {
-				token := tokenManager.GetCurrentToken()
-				if token == "" {
-					return "", nil
+		// Check if using PAT token
+		if token, ok := ctx.Value(config.TokenKey).(string); ok && token != "" {
+			// Using Personal Access Token - no need for caching or installation token logic
+			return "Bearer " + token, nil
+		}
+
+		// Using GitHub App authentication
+		// Build cache key based on target type and organization
+		cacheKey := targetType
+		if targetType == config.OrganizationType {
+			if orgName, ok := ctx.Value(config.OrgKey).(string); ok && orgName != "" {
+				cacheKey = targetType + ":" + orgName
+			}
+		}
+
+		// Check if we have a cached token for this cache key
+		globalTokenCache.RLock()
+		if cached, ok := globalTokenCache.tokens[cacheKey]; ok && time.Now().Before(cached.expires) {
+			token := cached.token
+			globalTokenCache.RUnlock()
+			return "Bearer " + token, nil
+		}
+		globalTokenCache.RUnlock()
+
+		// Need to get a new token
+		globalTokenCache.Lock()
+		defer globalTokenCache.Unlock()
+
+		// Double-check after acquiring write lock to deal with race condition
+		if cached, ok := globalTokenCache.tokens[cacheKey]; ok && time.Now().Before(cached.expires) {
+			return "Bearer " + cached.token, nil
+		}
+
+		// Acquire new installation token for this target type
+		ts := auth.NewTokenService(
+			ctx.Value(config.AppIDKey).(string),
+			ctx.Value(config.PrivateKeyPathKey).(string),
+			ctx.Value(config.BaseURLKey).(string),
+		)
+
+		var tokenStr string
+		var err error
+
+		// For organization-specific requests, get org-specific token
+		if targetType == config.OrganizationType {
+			if orgName, ok := ctx.Value(config.OrgKey).(string); ok && orgName != "" {
+				tokenStr, err = ts.GetInstallationTokenForOrg(orgName)
+				if err != nil {
+					return "", err
 				}
-				return "Bearer " + token, nil
+			} else {
+				// Fall back to general installation token
+				token, err := ts.GetInstallationToken(targetType)
+				if err != nil {
+					return "", err
+				}
+				tokenStr = token.Token
 			}
+		} else {
+			token, err := ts.GetInstallationToken(targetType)
+			if err != nil {
+				return "", err
+			}
+			tokenStr = token.Token
 		}
 
-		// Fallback: if no TokenManager, try to get tokens array directly (use first token)
-		if tokensValue := ctx.Value(config.TokenKey); tokensValue != nil {
-			if tokens, ok := tokensValue.([]string); ok && len(tokens) > 0 && tokens[0] != "" {
-				return "Bearer " + tokens[0], nil
-			}
+		// Cache the token for 55 minutes
+		globalTokenCache.tokens[cacheKey] = cachedToken{
+			token:   tokenStr,
+			expires: time.Now().Add(55 * time.Minute),
 		}
 
-		return "", nil
+		return "Bearer " + tokenStr, nil
 	}
 
 	return NewCustomRoundTripper(Options{
-		Base:            http.DefaultTransport,
-		StaticHeaders:   static,
-		AuthProvider:    authProv,
-		Logger:          logger,
-		MaxBodyLogBytes: 0,
+		Base:          http.DefaultTransport,
+		StaticHeaders: static,
+		AuthProvider:  authProv,
+		Logger:        logger,
 	})
 }
-
-// ErrNoAuth is a sample sentinel error
-var ErrNoAuth = errors.New("no auth available")

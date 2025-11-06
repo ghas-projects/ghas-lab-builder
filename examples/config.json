@@ -1,17 +1,50 @@
 {
   "lab-env-setup": {
     "repos": [
-      "ghas-lab-templates/terragoat-iac",
-      "ghas-lab-templates/mono",
-      "ghas-lab-templates/SecurityShepherd",
-      "ghas-lab-templates/moshi",
-      "ghas-lab-templates/juice-shop",
-      "ghas-lab-templates/WebGoat",
-      "ghas-lab-templates/JavaVulnerableLab",
-      "ghas-lab-templates/mona-gallery",
-      "ghas-lab-templates/exercises",
-      "ghas-lab-templates/github-configurations",
-      "ghas-lab-templates/OpenAPI.NET"
+      {
+        "template": "s-samadi-templates/terragoat-iac",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/mono",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/SecurityShepherd",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/moshi",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/juice-shop",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/WebGoat",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/JavaVulnerableLab",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/mona-gallery",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/exercises",
+        "include_all_branches": true
+      },
+      {
+        "template": "s-samadi-templates/github-configurations",
+        "include_all_branches": false
+      },
+      {
+        "template": "s-samadi-templates/OpenAPI.NET",
+        "include_all_branches": false
+      }
     ]
   }
 }

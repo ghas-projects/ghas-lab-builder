@@ -33,16 +33,6 @@ func CreateReposInLabOrg(ctx context.Context, logger *slog.Logger, templateRepos
 		slog.Int("count", len(templateRepos)),
 		slog.String("org", orgName))
 
-	// Create TokenManager
-	tokenManager, err := NewTokenManager(ctx, logger)
-	if err != nil {
-		logger.Error("Failed to create token manager", slog.Any("error", err))
-		return fmt.Errorf("failed to create token manager: %w", err)
-	}
-
-	// Add TokenManager to context
-	ctx = context.WithValue(ctx, config.TokenManagerKey, tokenManager)
-
 	// Get the organization
 	organization, err := api.GetOrganization(ctx, logger, orgName)
 	if err != nil {
@@ -56,15 +46,16 @@ func CreateReposInLabOrg(ctx context.Context, logger *slog.Logger, templateRepos
 
 	// Create repositories from templates
 	successCount := 0
-	for _, repo := range templateRepos {
+	for _, repoConfig := range templateRepos {
 		logger.Info("Creating repository from template",
-			slog.String("template", repo),
+			slog.String("template", repoConfig.Template),
+			slog.Bool("include_all_branches", repoConfig.IncludeAllBranches),
 			slog.String("org", orgName))
 
-		_, err := organization.CreateRepoFromTemplate(ctx, logger, repo)
+		_, err := organization.CreateRepoFromTemplate(ctx, logger, repoConfig.Template, repoConfig.IncludeAllBranches)
 		if err != nil {
 			logger.Error("Failed to create repository",
-				slog.String("repo", repo),
+				slog.String("repo", repoConfig.Template),
 				slog.String("org", orgName),
 				slog.Any("error", err))
 			// Continue with other repos even if one fails
@@ -73,7 +64,7 @@ func CreateReposInLabOrg(ctx context.Context, logger *slog.Logger, templateRepos
 
 		successCount++
 		logger.Info("Successfully created repository",
-			slog.String("template", repo),
+			slog.String("template", repoConfig.Template),
 			slog.String("org", orgName))
 	}
 
@@ -99,16 +90,6 @@ func DeleteReposInLabOrg(ctx context.Context, logger *slog.Logger, repoNames []s
 	if !ok || orgName == "" {
 		return fmt.Errorf("organization name not found in context")
 	}
-
-	// Create TokenManager
-	tokenManager, err := NewTokenManager(ctx, logger)
-	if err != nil {
-		logger.Error("Failed to create token manager", slog.Any("error", err))
-		return fmt.Errorf("failed to create token manager: %w", err)
-	}
-
-	// Add TokenManager to context
-	ctx = context.WithValue(ctx, config.TokenManagerKey, tokenManager)
 
 	// Get the organization
 	organization, err := api.GetOrganization(ctx, logger, orgName)

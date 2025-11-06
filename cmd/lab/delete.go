@@ -15,10 +15,22 @@ var DeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete a full lab environment (org, repos, users)",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
 
-		ctx = context.WithValue(ctx, config.TokenKey, strings.Split(cmd.Flags().Lookup("token").Value.String(), ","))
-		ctx = context.WithValue(ctx, config.BaseURLKey, cmd.Flags().Lookup("base-url").Value.String())
+		// Traverse up to find and call the root command's PersistentPreRunE
+		root := cmd
+		for root.Parent() != nil {
+			root = root.Parent()
+		}
+
+		// Call root's PersistentPreRunE if it exists
+		if root.PersistentPreRunE != nil {
+			if err := root.PersistentPreRunE(cmd, args); err != nil {
+				return err
+			}
+		}
+
+		// Get context AFTER calling root's PersistentPreRunE (which sets BaseURLKey)
+		ctx := cmd.Context()
 		ctx = context.WithValue(ctx, config.EnterpriseSlugKey, cmd.Flags().Lookup("enterprise-slug").Value.String())
 		ctx = context.WithValue(ctx, config.FacilitatorsKey, strings.Split(facilitators, ","))
 		ctx = context.WithValue(ctx, config.LabDateKey, labDate)

@@ -14,13 +14,16 @@ import (
 	"github.com/s-samadi/ghas-lab-builder/internal/config"
 )
 
-func (org *Organization) CreateRepoFromTemplate(ctx context.Context, logger *slog.Logger, templateRepo string) (*Repository, error) {
-	return org.createRepoFromTemplateWithRetry(ctx, logger, templateRepo, 0)
+func (org *Organization) CreateRepoFromTemplate(ctx context.Context, logger *slog.Logger, templateRepo string, includeAllBranches bool) (*Repository, error) {
+	// Enrich context with org-specific information for auth scoping
+	ctx = context.WithValue(ctx, config.OrgKey, org.Login)
+	return org.createRepoFromTemplateWithRetry(ctx, logger, templateRepo, includeAllBranches, 0)
 }
 
-func (org *Organization) createRepoFromTemplateWithRetry(ctx context.Context, logger *slog.Logger, templateRepo string, retryCount int) (*Repository, error) {
+func (org *Organization) createRepoFromTemplateWithRetry(ctx context.Context, logger *slog.Logger, templateRepo string, includeAllBranches bool, retryCount int) (*Repository, error) {
 	logger.Info("Creating repository from template",
-		slog.String("template", templateRepo))
+		slog.String("template", templateRepo),
+		slog.Bool("include_all_branches", includeAllBranches))
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
@@ -40,7 +43,7 @@ func (org *Organization) createRepoFromTemplateWithRetry(ctx context.Context, lo
 		"owner":                org.Login,
 		"name":                 templateRepoName,
 		"description":          fmt.Sprintf("Repository created from template %s", templateRepo),
-		"include_all_branches": true,
+		"include_all_branches": includeAllBranches,
 		"private":              true,
 	}
 
@@ -48,11 +51,10 @@ func (org *Organization) createRepoFromTemplateWithRetry(ctx context.Context, lo
 	if err != nil {
 		logger.Error("Failed to marshal request payload", slog.Any("error", err))
 		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
-
 	}
 
 	//user customrt to inject headers
-	rt := NewGithubStyleTransport(ctx, logger)
+	rt := NewGithubStyleTransport(ctx, logger, config.OrganizationType)
 
 	client := &http.Client{
 		Transport: rt,
@@ -78,41 +80,18 @@ func (org *Organization) createRepoFromTemplateWithRetry(ctx context.Context, lo
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		if resp.StatusCode == 403 {
+		if resp.StatusCode == 422 {
 			var errResp struct {
 				Message string `json:"message"`
 			}
 			if err := json.Unmarshal(body, &errResp); err == nil && strings.Contains(errResp.Message, "Resource not accessible by integration") {
 				retryCount++
-				logger.Debug("Rate limit hit",
+				logger.Warn("Rate limit hit, retrying after delay",
 					slog.Int("retry_count", retryCount))
-
-				// After 3 failed attempts, try to rotate token
-				if retryCount >= 3 {
-					logger.Warn("Rate limit persists after 3 attempts, rotating token",
-						slog.Int("retry_count", retryCount))
-
-					// Get TokenManager from context and rotate
-					if tm := ctx.Value(config.TokenManagerKey); tm != nil {
-						if tokenManager, ok := tm.(interface{ RotateToken() error }); ok {
-							if err := tokenManager.RotateToken(); err != nil {
-								logger.Error("Failed to rotate token", slog.Any("error", err))
-								return nil, fmt.Errorf("rate limit exceeded and no more tokens available: %w", err)
-							}
-							logger.Info("Token rotated successfully, retrying request")
-							// Reset retry count after token rotation
-							retryCount = 0
-						} else {
-							logger.Warn("TokenManager found but does not support rotation")
-						}
-					} else {
-						logger.Warn("No TokenManager found in context, cannot rotate token")
-					}
-				}
 
 				logger.Debug("Sleeping for 60 seconds before retry")
 				time.Sleep(60 * time.Second)
-				return org.createRepoFromTemplateWithRetry(ctx, logger, templateRepo, retryCount)
+				return org.createRepoFromTemplateWithRetry(ctx, logger, templateRepo, includeAllBranches, retryCount)
 			}
 		}
 		logger.Error("Failed to create repository from template",
@@ -147,7 +126,7 @@ func (org *Organization) DeleteRepository(ctx context.Context, logger *slog.Logg
 	baseURL := ctx.Value(config.BaseURLKey).(string)
 	apiURL := fmt.Sprintf("%s/repos/%s/%s", baseURL, org.Name, repoName)
 
-	rt := NewGithubStyleTransport(ctx, logger)
+	rt := NewGithubStyleTransport(ctx, logger, config.OrganizationType)
 	client := &http.Client{
 		Transport: rt,
 	}
@@ -193,7 +172,7 @@ func (org *Organization) ListRepositories(ctx context.Context, logger *slog.Logg
 	page := 1
 	perPage := 100
 
-	rt := NewGithubStyleTransport(ctx, logger)
+	rt := NewGithubStyleTransport(ctx, logger, config.OrganizationType)
 	client := &http.Client{
 		Transport: rt,
 	}

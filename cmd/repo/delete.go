@@ -8,7 +8,7 @@ import (
 
 	"github.com/s-samadi/ghas-lab-builder/internal/config"
 	reposervice "github.com/s-samadi/ghas-lab-builder/internal/services"
-	userspec "github.com/s-samadi/ghas-lab-builder/internal/util"
+	"github.com/s-samadi/ghas-lab-builder/internal/util"
 	"github.com/spf13/cobra"
 )
 
@@ -24,13 +24,19 @@ var DeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete repositories within a lab environment",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+
+		root := cmd
+		for root.Parent() != nil {
+			root = root.Parent()
+		}
+
+		if root.PersistentPreRunE != nil {
+			if err := root.PersistentPreRunE(cmd, args); err != nil {
+				return err
+			}
+		}
 		ctx := cmd.Context()
-
-		tokens := strings.Split(cmd.Flags().Lookup("token").Value.String(), ",")
-		ctx = context.WithValue(ctx, config.TokenKey, tokens)
 		ctx = context.WithValue(ctx, config.OrgKey, org)
-		ctx = context.WithValue(ctx, config.BaseURLKey, cmd.Flags().Lookup("base-url").Value.String())
-
 		cmd.SetContext(ctx)
 		return nil
 	},
@@ -39,21 +45,29 @@ var DeleteCmd = &cobra.Command{
 		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 		var repoNames []string
-		var err error
 
-		// If repos file is provided, load from file
-		// Otherwise, delete all repos in the org
 		if deleteRepos != "" {
-			repoNames, err = userspec.LoadFromJsonFile(deleteRepos)
+			repoConfigs, err := util.LoadFromJsonFile(deleteRepos)
 			if err != nil {
 				logger.Error("Failed to load repository names",
 					slog.String("file", deleteRepos),
 					slog.Any("error", err))
 				return err
 			}
+
+			repoNames = make([]string, len(repoConfigs))
+			for i, config := range repoConfigs {
+
+				parts := strings.Split(config.Template, "/")
+				if len(parts) == 2 {
+					repoNames[i] = parts[1]
+				} else {
+					repoNames[i] = config.Template
+				}
+			}
 		} else {
 			logger.Info("No repos file specified, will delete all repositories in the organization")
-			repoNames = nil // nil signals to delete all repos
+			repoNames = nil
 		}
 
 		return reposervice.DeleteReposInLabOrg(ctx, logger, repoNames)

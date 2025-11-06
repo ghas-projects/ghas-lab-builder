@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/s-samadi/ghas-lab-builder/internal/config"
 	reposervice "github.com/s-samadi/ghas-lab-builder/internal/services"
@@ -24,11 +23,21 @@ var CreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create repositories within a lab environment",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Traverse up to find and call the root command's PersistentPreRunE
+		root := cmd
+		for root.Parent() != nil {
+			root = root.Parent()
+		}
+
+		// Call root's PersistentPreRunE if it exists
+		if root.PersistentPreRunE != nil {
+			if err := root.PersistentPreRunE(cmd, args); err != nil {
+				return err
+			}
+		}
+
 		ctx := cmd.Context()
 
-		tokens := strings.Split(cmd.Flags().Lookup("token").Value.String(), ",")
-		ctx = context.WithValue(ctx, config.TokenKey, tokens)
-		ctx = context.WithValue(ctx, config.BaseURLKey, cmd.Flags().Lookup("base-url").Value.String())
 		ctx = context.WithValue(ctx, config.OrgKey, org)
 
 		cmd.SetContext(ctx)

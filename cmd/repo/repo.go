@@ -1,6 +1,8 @@
 package repo
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
 var (
 	org string

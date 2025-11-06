@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/s-samadi/ghas-lab-builder/internal/auth"
 	"github.com/s-samadi/ghas-lab-builder/internal/config"
 )
 
@@ -19,7 +20,7 @@ func (enterprise *Enterprise) CreateOrg(ctx context.Context, logger *slog.Logger
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	rt := NewGithubStyleTransport(ctx, logger)
+	rt := NewGithubStyleTransport(ctx, logger, config.EnterpriseType)
 
 	client := &http.Client{
 		Transport: rt,
@@ -133,7 +134,7 @@ func (enterprise *Enterprise) DeleteOrg(ctx context.Context, logger *slog.Logger
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	rt := NewGithubStyleTransport(ctx, logger)
+	rt := NewGithubStyleTransport(ctx, logger, config.EnterpriseType)
 
 	client := &http.Client{
 		Transport: rt,
@@ -324,7 +325,7 @@ func GetOrganization(ctx context.Context, logger *slog.Logger, orgName string) (
 	baseURL := ctx.Value(config.BaseURLKey).(string)
 	apiURL := fmt.Sprintf("%s/orgs/%s", baseURL, orgName)
 
-	rt := NewGithubStyleTransport(ctx, logger)
+	rt := NewGithubStyleTransport(ctx, logger, config.EnterpriseType)
 	client := &http.Client{
 		Transport: rt,
 	}
@@ -377,4 +378,81 @@ func GetOrganization(ctx context.Context, logger *slog.Logger, orgName string) (
 		Login: org.Login,
 		Name:  org.Name,
 	}, nil
+}
+
+// InstallAppOnOrg installs a GitHub App on an organization using REST API
+func (enterprise *Enterprise) InstallAppOnOrg(ctx context.Context, logger *slog.Logger, orgName string) (*AppInstallation, error) {
+	logger.Info("Installing app on organization",
+		slog.String("org", orgName))
+
+	//I don't love this but to get the ClientID we need to get an enterprise installation token again. Consider refactoring later.
+	ts := auth.NewTokenService(ctx.Value(config.AppIDKey).(string), ctx.Value(config.PrivateKeyPathKey).(string), ctx.Value(config.BaseURLKey).(string))
+	token, err := ts.GetInstallationToken(config.EnterpriseType)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get installation token: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	rt := NewGithubStyleTransport(ctx, logger, config.EnterpriseType)
+	client := &http.Client{
+		Transport: rt,
+	}
+
+	baseURL := ctx.Value(config.BaseURLKey).(string)
+	enterpriseSlug := enterprise.Slug
+	apiURL := fmt.Sprintf("%s/enterprises/%s/apps/organizations/%s/installations", baseURL, enterpriseSlug, orgName)
+
+	// Prepare request body
+	payload := map[string]interface{}{
+		"client_id":            token.ClientID,
+		"repository_selection": "all",
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		logger.Error("Failed to marshal request payload", slog.Any("error", err))
+		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		logger.Error("Failed to create request", slog.Any("error", err))
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Error("Failed to execute request", slog.Any("error", err))
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("Failed to read response body", slog.Any("error", err))
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		logger.Error("Failed to install app on organization",
+			slog.Int("status_code", resp.StatusCode),
+			slog.String("response", string(body)))
+		return nil, fmt.Errorf("failed to install app with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var installation AppInstallation
+	if err := json.Unmarshal(body, &installation); err != nil {
+		logger.Error("Failed to parse response", slog.Any("error", err))
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	logger.Info("Successfully installed app on organization",
+		slog.String("org", orgName),
+		slog.String("app_id", token.AppID),
+		slog.Int64("installation_id", installation.ID))
+
+	return &installation, nil
 }

@@ -18,3 +18,16 @@ type Repository struct {
 	FullName string `json:"full_name"`
 	HTMLURL  string `json:"html_url"`
 }
+
+type AppInstallation struct {
+	ID                  int64  `json:"id"`
+	AppID               int64  `json:"app_id"`
+	AppSlug             string `json:"app_slug"`
+	TargetID            int64  `json:"target_id"`
+	TargetType          string `json:"target_type"`
+	RepositorySelection string `json:"repository_selection,omitempty"`
+	Account             struct {
+		Login string `json:"login"`
+		Type  string `json:"type"`
+	} `json:"account"`
+}

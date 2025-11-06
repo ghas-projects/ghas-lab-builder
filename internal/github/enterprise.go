@@ -17,10 +17,10 @@ import (
 func GetEnterprise(ctx context.Context, logger *slog.Logger, enterpriseSlug string) (*Enterprise, error) {
 	logger.Info("Fetching enterprise", slog.String("slug", enterpriseSlug))
 
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	rt := NewGithubStyleTransport(ctx, logger)
+	rt := NewGithubStyleTransport(ctx, logger, config.EnterpriseType)
 	client := &http.Client{
 		Transport: rt,
 	}
