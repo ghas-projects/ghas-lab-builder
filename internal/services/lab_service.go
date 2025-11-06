@@ -146,9 +146,15 @@ func CreateLabEnvironment(ctx context.Context, logger *slog.Logger, usersFile st
 		ctx = context.WithValue(ctx, config.FacilitatorsKey, facilitators)
 	}
 
+	// Combine users and facilitators for provisioning
+	allUsersToProvision := make([]string, 0, len(users)+len(facilitators))
+	allUsersToProvision = append(allUsersToProvision, users...)
+	allUsersToProvision = append(allUsersToProvision, facilitators...)
+
 	logger.Info("Proceeding with validated users",
-		slog.Int("user_count", len(users)),
+		slog.Int("student_count", len(users)),
 		slog.Int("facilitator_count", len(facilitators)),
+		slog.Int("total_provision_count", len(allUsersToProvision)),
 		slog.Int("invalid_user_count", len(invalidUsers)),
 		slog.Int("invalid_facilitator_count", len(invalidFacilitators)))
 
@@ -178,19 +184,19 @@ func CreateLabEnvironment(ctx context.Context, logger *slog.Logger, usersFile st
 		return err
 	}
 
-	orgChan := make(chan string, len(users))
-	// Update channel type
-	resultsChan := make(chan ProvisionResult, len(users))
+	orgChan := make(chan string, len(allUsersToProvision))
+	// Update channel size to accommodate all users
+	resultsChan := make(chan ProvisionResult, len(allUsersToProvision))
 
 	// Use WaitGroup to track worker goroutines
 	var wg sync.WaitGroup
 
 	// Calculate optimal number of workers: max 9 or number of users
 	numWorkers := 9
-	if len(users) < numWorkers {
-		numWorkers = len(users)
+	if len(allUsersToProvision) < numWorkers {
+		numWorkers = len(allUsersToProvision)
 	}
-	logger.Info("Starting workers", slog.Int("worker_count", numWorkers), slog.Int("user_count", len(users)))
+	logger.Info("Starting workers", slog.Int("worker_count", numWorkers), slog.Int("total_user_count", len(allUsersToProvision)))
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -200,8 +206,8 @@ func CreateLabEnvironment(ctx context.Context, logger *slog.Logger, usersFile st
 		}(i)
 	}
 
-	// Send all users to the channel
-	for _, user := range users {
+	// Send all users (students + facilitators) to the channel
+	for _, user := range allUsersToProvision {
 		orgChan <- user
 	}
 	// Close orgChan immediately after sending all work
@@ -225,7 +231,7 @@ func CreateLabEnvironment(ctx context.Context, logger *slog.Logger, usersFile st
 			if !ok {
 				// Channel closed, all workers finished
 				logger.Info("All provisioning complete",
-					slog.Int("total", len(users)),
+					slog.Int("total", len(allUsersToProvision)),
 					slog.Int("success", successCount),
 					slog.Int("failed", failureCount))
 
@@ -261,12 +267,12 @@ func CreateLabEnvironment(ctx context.Context, logger *slog.Logger, usersFile st
 					logger.Error("Failed to generate report files", slog.Any("error", err))
 				}
 
-				if resultCount == len(users) {
+				if resultCount == len(allUsersToProvision) {
 					logger.Info("All organizations and repositories created successfully")
 					return nil
 				}
 				logger.Error("Workers finished but not all users processed",
-					slog.Int("expected", len(users)),
+					slog.Int("expected", len(allUsersToProvision)),
 					slog.Int("processed", resultCount))
 				return ctx.Err()
 			}
@@ -357,6 +363,16 @@ func DestroyLabEnvironment(ctx context.Context, logger *slog.Logger, labDate str
 	// Get facilitators from context
 	facilitators, _ := ctx.Value(config.FacilitatorsKey).([]string)
 
+	// Combine users and facilitators for deletion
+	allUsersToDelete := make([]string, 0, len(users)+len(facilitators))
+	allUsersToDelete = append(allUsersToDelete, users...)
+	allUsersToDelete = append(allUsersToDelete, facilitators...)
+
+	logger.Info("Proceeding with deletion",
+		slog.Int("student_count", len(users)),
+		slog.Int("facilitator_count", len(facilitators)),
+		slog.Int("total_delete_count", len(allUsersToDelete)))
+
 	// Get Enterprise details
 	enterprise, err := api.GetEnterprise(ctx, logger, enterpriseSlug)
 	if err != nil {
@@ -376,18 +392,18 @@ func DestroyLabEnvironment(ctx context.Context, logger *slog.Logger, labDate str
 		Facilitators:   facilitators,
 	}
 
-	userChan := make(chan string, len(users))
-	resultsChan := make(chan DeleteOrgReport, len(users))
+	userChan := make(chan string, len(allUsersToDelete))
+	resultsChan := make(chan DeleteOrgReport, len(allUsersToDelete))
 
 	// Use WaitGroup to track worker goroutines
 	var wg sync.WaitGroup
 
 	// Calculate optimal number of workers: min(9, number of users)
 	numWorkers := 9
-	if len(users) < numWorkers {
-		numWorkers = len(users)
+	if len(allUsersToDelete) < numWorkers {
+		numWorkers = len(allUsersToDelete)
 	}
-	logger.Info("Starting destroy workers", slog.Int("worker_count", numWorkers), slog.Int("user_count", len(users)))
+	logger.Info("Starting destroy workers", slog.Int("worker_count", numWorkers), slog.Int("total_user_count", len(allUsersToDelete)))
 
 	// Create worker goroutines
 	for i := 0; i < numWorkers; i++ {
@@ -398,8 +414,8 @@ func DestroyLabEnvironment(ctx context.Context, logger *slog.Logger, labDate str
 		}(i)
 	}
 
-	// Send all users to the channel
-	for _, user := range users {
+	// Send all users (students + facilitators) to the channel
+	for _, user := range allUsersToDelete {
 		userChan <- user
 	}
 	// Close userChan immediately after sending all work
@@ -420,7 +436,7 @@ func DestroyLabEnvironment(ctx context.Context, logger *slog.Logger, labDate str
 				// Channel closed, all workers finished
 				logger.Info("Finished destroying lab environment",
 					slog.String("lab_date", labDate),
-					slog.Int("total", len(users)),
+					slog.Int("total", len(allUsersToDelete)),
 					slog.Int("processed", resultCount),
 					slog.Int("successful", deleteReport.SuccessCount),
 					slog.Int("failed", deleteReport.FailureCount),
