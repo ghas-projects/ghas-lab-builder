@@ -240,7 +240,7 @@ func CreateLabEnvironment(ctx context.Context, logger *slog.Logger, usersFile st
 					GeneratedAt:         time.Now(),
 					LabDate:             labDate,
 					EnterpriseSlug:      enterpriseSlug,
-					TotalUsers:          len(users),
+					TotalUsers:          len(allUsersToProvision),
 					SuccessCount:        successCount,
 					FailureCount:        failureCount,
 					TemplateRepos:       getTemplateNames(templateRepos),
